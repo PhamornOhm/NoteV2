@@ -1,0 +1,168 @@
+import { useState } from 'react'
+import { supabase } from '../lib/supabase'
+
+export default function Login() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [mode, setMode] = useState('login') // login | signup
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const handleSubmit = async () => {
+    setLoading(true)
+    setMessage('')
+    let error
+
+    if (mode === 'login') {
+      const res = await supabase.auth.signInWithPassword({ email, password })
+      error = res.error
+    } else {
+      const res = await supabase.auth.signUp({ email, password })
+      error = res.error
+      if (!error) setMessage('✓ สมัครสำเร็จ! เช็คอีเมลเพื่อยืนยันบัญชี')
+    }
+
+    if (error) setMessage('✗ ' + error.message)
+    setLoading(false)
+  }
+
+  const handleGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    })
+  }
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <h1 style={styles.title}>Notes</h1>
+        <p style={styles.sub}>บันทึกความคิด ทุกที่ทุกเวลา</p>
+
+        <div style={styles.form}>
+          <input
+            style={styles.input}
+            type="email"
+            placeholder="อีเมล"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+          />
+          <input
+            style={styles.input}
+            type="password"
+            placeholder="รหัสผ่าน"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+          />
+
+          {message && (
+            <p style={{ ...styles.message, color: message.startsWith('✓') ? '#6bcb77' : '#e74c3c' }}>
+              {message}
+            </p>
+          )}
+
+          <button style={styles.btnPrimary} onClick={handleSubmit} disabled={loading}>
+            {loading ? '...' : mode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}
+          </button>
+
+          <div style={styles.divider}><span>หรือ</span></div>
+
+          <button style={styles.btnGoogle} onClick={handleGoogle}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            เข้าสู่ระบบด้วย Google
+          </button>
+
+          <p style={styles.toggle}>
+            {mode === 'login' ? 'ยังไม่มีบัญชี? ' : 'มีบัญชีแล้ว? '}
+            <span style={styles.link} onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+              {mode === 'login' ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ'}
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'var(--bg)',
+    padding: '24px',
+  },
+  card: {
+    width: '100%',
+    maxWidth: '380px',
+    padding: '48px 40px',
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: '12px',
+  },
+  title: {
+    fontFamily: 'var(--font-display)',
+    fontSize: '36px',
+    color: 'var(--accent)',
+    letterSpacing: '-0.5px',
+  },
+  sub: {
+    color: 'var(--text-muted)',
+    fontSize: '14px',
+    marginTop: '6px',
+    marginBottom: '32px',
+  },
+  form: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  input: {
+    background: 'var(--bg)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)',
+    padding: '12px 14px',
+    color: 'var(--text)',
+    fontSize: '14px',
+    outline: 'none',
+    transition: 'border-color 0.2s',
+  },
+  message: { fontSize: '13px', padding: '8px 0' },
+  btnPrimary: {
+    background: 'var(--accent)',
+    color: '#0f0f0f',
+    border: 'none',
+    borderRadius: 'var(--radius)',
+    padding: '12px',
+    fontWeight: '600',
+    fontSize: '14px',
+    marginTop: '4px',
+    transition: 'opacity 0.2s',
+  },
+  divider: {
+    textAlign: 'center',
+    color: 'var(--text-muted)',
+    fontSize: '12px',
+    position: 'relative',
+    margin: '4px 0',
+  },
+  btnGoogle: {
+    background: 'var(--surface2)',
+    color: 'var(--text)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)',
+    padding: '11px',
+    fontSize: '14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+    transition: 'background 0.2s',
+  },
+  toggle: { textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' },
+  link: { color: 'var(--accent)', cursor: 'pointer' },
+}

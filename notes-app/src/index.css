@@ -1,0 +1,85 @@
+/* Reset & Base Styles */
+*, *::before, *::after { 
+  box-sizing: border-box; 
+  margin: 0; 
+  padding: 0; 
+}
+
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface2: #222;
+  --border: #2e2e2e;
+  --text: #e8e6e0;
+  --text-muted: #666;
+  --accent: #c9a96e;
+  --accent-dim: #c9a96e22;
+  --danger: #c0392b;
+  --radius: 8px;
+  --font-display: 'DM Serif Display', serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { 
+  cursor: pointer; 
+  font-family: var(--font-body); 
+  transition: all 0.2s ease;
+}
+
+button:active { transform: scale(0.98); }
+
+textarea, input { 
+  font-family: var(--font-body); 
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Utilities */
+.mobile-only { display: none; }
+.desktop-only { display: block; }
+
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Responsive Overrides */
+@media (max-width: 768px) {
+  .mobile-only { display: block; }
+  .desktop-only { display: none; }
+  
+  .responsive-content { padding: 16px !important; }
+  .responsive-drawing-area { min-height: 300px !important; }
+  .responsive-modal { padding: 20px !important; gap: 20px !important; }
+  .responsive-modal-title { font-size: 24px !important; }
+  .responsive-toolbar { padding: 8px 12px !important; }
+  .sidebar-mobile { width: 85vw !important; max-width: 300px; }
+  
+  ::-webkit-scrollbar { width: 4px; }
+}
+
+/* Fix for vertical text in buttons on some browsers */
+button {
+  white-space: nowrap;
+}
