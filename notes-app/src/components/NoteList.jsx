@@ -1,17 +1,185 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { 
+  Plus, Search, Pin, Trash2, Tag, LayoutGrid, List, 
+  RotateCcw, MoreVertical, Calendar, Hash, GripVertical,
+  X, Check, AlertCircle, Trash
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  rectSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 
+// --- Sortable Item Component ---
+function SortableNote({ 
+  note, selected, onSelect, onPin, onDelete, onRestore, 
+  isDeletedMode, viewMode, activeConfirmDelete, setConfirmDelete 
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: note.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 1,
+  }
+
+  const formatDate = (d) => new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+  
+  const preview = (c) => {
+    if (!c) return 'ไม่มีเนื้อหา'
+    if (c.startsWith('[DRAWING]')) return '🎨 รูปวาด'
+    return c.replace(/[#*`]/g, '').slice(0, 60)
+  }
+
+  const isSelected = selected?.id === note.id
+
+  if (viewMode === 'grid') {
+    return (
+      <div 
+        ref={setNodeRef} 
+        style={style} 
+        className={`note-card-grid ${isSelected ? 'active' : ''}`}
+        onClick={() => onSelect(note)}
+      >
+        <div className="note-card-drag-handle" {...attributes} {...listeners}>
+          <GripVertical size={14} />
+        </div>
+        
+        <div className="note-card-content">
+          <div className="note-card-header">
+            <span className="note-card-title">
+              {note.is_pinned && <Pin size={12} fill="currentColor" className="pinned-icon" />}
+              {note.title}
+            </span>
+          </div>
+          
+          <p className="note-card-preview">{preview(note.content)}</p>
+          
+          <div className="note-card-footer">
+            <span className="note-card-date">{formatDate(note.updated_at || note.created_at)}</span>
+            <div className="note-card-tags">
+              {(note.tags || []).slice(0, 2).map(tag => (
+                <span key={tag} className="note-tag-mini">#{tag}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="note-card-actions">
+           {!isDeletedMode ? (
+              <>
+                <button onClick={(e) => { e.stopPropagation(); onPin(note, e); }} className="action-btn">
+                  <Pin size={14} fill={note.is_pinned ? 'currentColor' : 'none'} />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); onDelete(note, e); }} className="action-btn hover-danger">
+                  <Trash2 size={14} />
+                </button>
+              </>
+           ) : (
+             <>
+                <button onClick={(e) => { e.stopPropagation(); onRestore(note, e); }} className="action-btn hover-success">
+                  <RotateCcw size={14} />
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(note, e); }} 
+                  className={`action-btn ${activeConfirmDelete === note.id ? 'confirm' : 'hover-danger'}`}
+                >
+                  {activeConfirmDelete === note.id ? <Check size={14} /> : <Trash size={14} />}
+                </button>
+             </>
+           )}
+        </div>
+      </div>
+    )
+  }
+
+  // List View
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      className={`note-card-list ${isSelected ? 'active' : ''}`}
+      onClick={() => onSelect(note)}
+    >
+      <div className="note-card-drag-handle" {...attributes} {...listeners}>
+        <GripVertical size={14} />
+      </div>
+      
+      <div className="note-list-info">
+        <div className="note-list-main">
+           <span className="note-list-title">
+             {note.is_pinned && <Pin size={12} fill="currentColor" className="pinned-icon" />}
+             {note.title}
+           </span>
+           <span className="note-list-preview">{preview(note.content)}</span>
+        </div>
+        <span className="note-list-date">{formatDate(note.updated_at || note.created_at)}</span>
+      </div>
+
+      <div className="note-list-actions">
+        {!isDeletedMode ? (
+          <button onClick={(e) => { e.stopPropagation(); onDelete(note, e); }} className="action-btn hover-danger">
+            <Trash2 size={14} />
+          </button>
+        ) : (
+          <button onClick={(e) => { e.stopPropagation(); onRestore(note, e); }} className="action-btn hover-success">
+            <RotateCcw size={14} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// --- Main NoteList Component ---
 export default function NoteList({
   notes, allTags, activeTag, setActiveTag,
   selected, onSelect, onNew, onDelete,
   search, setSearch, activeTab, setActiveTab, onReload
 }) {
+  const [viewMode, setViewMode] = useState('grid') // grid | list
   const [confirmDelete, setConfirmDelete] = useState(null)
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event
+    if (active.id !== over?.id) {
+      // Local reorder only for now. Permanent storage would need a 'position' column.
+    }
+  }
 
   const handleSoftDelete = async (note, e) => {
     e.stopPropagation()
     if (note.is_deleted) {
-      // ถังขยะ: ลบถาวร
       if (confirmDelete === note.id) {
         await supabase.from('notes').delete().eq('id', note.id)
         onDelete()
@@ -21,7 +189,6 @@ export default function NoteList({
         setTimeout(() => setConfirmDelete(null), 2500)
       }
     } else {
-      // ย้ายไปถังขยะ
       await supabase.from('notes').update({
         is_deleted: true,
         deleted_at: new Date().toISOString()
@@ -42,205 +209,142 @@ export default function NoteList({
     onReload()
   }
 
-  const formatDate = (d) => new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
-  const preview = (c) => {
-    if (c?.startsWith('[DRAWING]')) return '🎨 รูปวาด'
-    return c.replace(/[#*`]/g, '').slice(0, 55) || 'ไม่มีเนื้อหา'
-  }
-
   const tabs = [
-    { id: 'all', label: 'ทั้งหมด' },
-    { id: 'pinned', label: '📌 ปักหมุด' },
-    { id: 'trash', label: '🗑️ ถังขยะ' },
+    { id: 'all', label: 'ทั้งหมด', icon: <Hash size={14} /> },
+    { id: 'pinned', label: 'ปักหมุด', icon: <Pin size={14} /> },
+    { id: 'trash', label: 'ถังขยะ', icon: <Trash2 size={14} /> },
   ]
 
   return (
-    <div style={styles.sidebar}>
-      {/* Header */}
-      <div style={styles.header}>
-        <h2 style={styles.logo}>Notes</h2>
+    <div className="sidebar-container">
+      {/* Sidebar Header */}
+      <div className="sidebar-header">
+        <div className="logo-section">
+          <h2 className="logo-text">NoteV2</h2>
+          <div className="view-toggle">
+            <button 
+              className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`} 
+              onClick={() => setViewMode('list')}
+              title="List View"
+            >
+              <List size={16} />
+            </button>
+            <button 
+              className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`} 
+              onClick={() => setViewMode('grid')}
+              title="Grid View"
+            >
+              <LayoutGrid size={16} />
+            </button>
+          </div>
+        </div>
+        
         {activeTab !== 'trash' && (
-          <button style={styles.btnNew} onClick={onNew}>＋</button>
+          <button className="btn-new-note" onClick={onNew}>
+            <Plus size={18} />
+            <span>โน้ตใหม่</span>
+          </button>
         )}
       </div>
 
-      {/* Tabs */}
-      <div style={styles.tabs}>
+      {/* Navigation Tabs */}
+      <div className="nav-tabs">
         {tabs.map(t => (
           <button
             key={t.id}
-            style={{ ...styles.tab, ...(activeTab === t.id ? styles.tabActive : {}) }}
+            className={`nav-tab ${activeTab === t.id ? 'active' : ''}`}
             onClick={() => { setActiveTab(t.id); setActiveTag(null) }}
           >
-            {t.label}
+            {t.icon}
+            <span>{t.label}</span>
           </button>
         ))}
       </div>
 
-      {/* Tags */}
+      {/* Tag Filter */}
       {allTags.length > 0 && activeTab !== 'trash' && (
-        <div style={styles.tagsWrap}>
-          <button
-            style={{ ...styles.tagChip, ...(activeTag === null ? styles.tagActive : {}) }}
-            onClick={() => setActiveTag(null)}
-          >ทั้งหมด</button>
-          {allTags.map(tag => (
+        <div className="tags-section">
+          <div className="tags-scroll">
             <button
-              key={tag}
-              style={{ ...styles.tagChip, ...(activeTag === tag ? styles.tagActive : {}) }}
-              onClick={() => setActiveTag(activeTag === tag ? null : tag)}
-            >#{tag}</button>
-          ))}
+              className={`tag-chip ${activeTag === null ? 'active' : ''}`}
+              onClick={() => setActiveTag(null)}
+            >ทั้งหมด</button>
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                className={`tag-chip ${activeTag === tag ? 'active' : ''}`}
+                onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+              >#{tag}</button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Search */}
-      <div style={styles.searchWrap}>
-        <span style={styles.searchIcon}>⌕</span>
-        <input
-          style={styles.searchInput}
-          placeholder="ค้นหา..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+      {/* Search Bar */}
+      <div className="search-container">
+        <div className="search-box">
+          <Search size={16} className="search-icon" />
+          <input
+            className="search-input"
+            placeholder="ค้นหาความจำของคุณ..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && <X size={14} className="clear-search" onClick={() => setSearch('')} />}
+        </div>
       </div>
 
-      <p style={styles.count}>{notes.length} โน้ต</p>
-
-      {/* List */}
-      <div style={styles.list}>
+      {/* Note List / Grid */}
+      <div className={`notes-list-wrapper ${viewMode}`}>
         {notes.length === 0 ? (
-          <div style={styles.empty}>
-            {activeTab === 'trash' ? 'ถังขยะว่างเปล่า' :
-              activeTab === 'pinned' ? 'ยังไม่มีโน้ตที่ปักหมุด' :
-                'ยังไม่มีโน้ต\nกด + เพื่อเริ่มต้น'}
+          <div className="empty-state">
+            <div className="empty-icon">
+              {activeTab === 'trash' ? <Trash2 size={40} /> : <AlertCircle size={40} />}
+            </div>
+            <p>
+              {activeTab === 'trash' ? 'ถังขยะว่างเปล่า' :
+                activeTab === 'pinned' ? 'ยังไม่มีโน้ตที่ปักหมุด' :
+                  'ไม่พบโน้ตที่ต้องการ'}
+            </p>
           </div>
-        ) : notes.map(note => (
-          <div
-            key={note.id}
-            style={{ ...styles.item, ...(selected?.id === note.id ? styles.itemActive : {}) }}
-            onClick={() => onSelect(note)}
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            modifiers={[restrictToWindowEdges]}
           >
-            <div style={styles.itemTop}>
-              <span style={styles.itemTitle}>
-                {note.is_pinned && <span style={{ color: 'var(--accent)', marginRight: 4 }}>📌</span>}
-                {note.title}
-              </span>
-              <span style={styles.itemDate}>{formatDate(note.updated_at || note.created_at)}</span>
-            </div>
-
-            <span style={styles.itemPreview}>{preview(note.content)}</span>
-
-            {/* Tags */}
-            {(note.tags || []).length > 0 && (
-              <div style={styles.noteTags}>
-                {note.tags.map(tag => (
-                  <span key={tag} style={styles.noteTag}>#{tag}</span>
-                ))}
+            <SortableContext
+              items={notes.map(n => n.id)}
+              strategy={viewMode === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}
+            >
+              <div className={`notes-${viewMode}-container`}>
+                <AnimatePresence>
+                  {notes.map(note => (
+                    <SortableNote 
+                      key={note.id}
+                      note={note}
+                      selected={selected}
+                      onSelect={onSelect}
+                      onPin={handlePin}
+                      onDelete={handleSoftDelete}
+                      onRestore={handleRestore}
+                      isDeletedMode={activeTab === 'trash'}
+                      viewMode={viewMode}
+                      activeConfirmDelete={confirmDelete}
+                      setConfirmDelete={setConfirmDelete}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
-            )}
+            </SortableContext>
+          </DndContext>
+        )}
+      </div>
 
-            {/* Actions */}
-            <div style={styles.actions}>
-              {!note.is_deleted && (
-                <button style={styles.actionBtn} onClick={(e) => handlePin(note, e)} title={note.is_pinned ? 'เลิกปักหมุด' : 'ปักหมุด'}>
-                  {note.is_pinned ? '📌' : '☆'}
-                </button>
-              )}
-              {note.is_deleted ? (
-                <>
-                  <button style={{ ...styles.actionBtn, color: '#6bcb77' }} onClick={(e) => handleRestore(note, e)}>↩ กู้คืน</button>
-                  <button
-                    style={{ ...styles.actionBtn, color: confirmDelete === note.id ? '#e74c3c' : 'var(--text-muted)' }}
-                    onClick={(e) => handleSoftDelete(note, e)}
-                  >{confirmDelete === note.id ? 'ยืนยันลบ?' : '🗑 ลบถาวร'}</button>
-                </>
-              ) : (
-                <button style={styles.actionBtn} onClick={(e) => handleSoftDelete(note, e)} title="ลบ">🗑</button>
-              )}
-            </div>
-          </div>
-        ))}
+      <div className="sidebar-footer">
+        <span>{notes.length} รายการ</span>
       </div>
     </div>
   )
-}
-
-const styles = {
-  sidebar: {
-    width: '290px', minWidth: '290px', background: 'var(--surface)',
-    borderRight: '1px solid var(--border)', display: 'flex',
-    flexDirection: 'column', height: '100vh', overflow: 'hidden',
-  },
-  header: {
-    display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', padding: '18px 16px 10px',
-  },
-  logo: { fontFamily: 'var(--font-display)', fontSize: '22px', color: 'var(--accent)' },
-  btnNew: {
-    background: 'var(--accent-dim)', color: 'var(--accent)',
-    border: '1px solid var(--accent)', borderRadius: '6px',
-    width: '30px', height: '30px', fontSize: '18px',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  tabs: { display: 'flex', gap: '4px', padding: '0 12px 10px' },
-  tab: {
-    flex: 1, background: 'none', border: '1px solid var(--border)',
-    borderRadius: '6px', padding: '5px 4px', fontSize: '11px',
-    color: 'var(--text-muted)', cursor: 'pointer',
-  },
-  tabActive: {
-    background: 'var(--accent-dim)', border: '1px solid var(--accent)',
-    color: 'var(--accent)',
-  },
-  tagsWrap: {
-    display: 'flex', flexWrap: 'wrap', gap: '4px',
-    padding: '0 12px 8px',
-  },
-  tagChip: {
-    background: 'none', border: '1px solid var(--border)',
-    borderRadius: '20px', padding: '2px 10px', fontSize: '11px',
-    color: 'var(--text-muted)', cursor: 'pointer',
-  },
-  tagActive: { background: 'var(--accent-dim)', borderColor: 'var(--accent)', color: 'var(--accent)' },
-  searchWrap: {
-    display: 'flex', alignItems: 'center', margin: '0 12px 6px',
-    background: 'var(--bg)', border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)', padding: '7px 12px', gap: '8px',
-  },
-  searchIcon: { color: 'var(--text-muted)', fontSize: '16px' },
-  searchInput: { background: 'none', border: 'none', color: 'var(--text)', fontSize: '13px', outline: 'none', flex: 1 },
-  count: { color: 'var(--text-muted)', fontSize: '11px', padding: '0 16px 6px', fontFamily: 'var(--font-mono)' },
-  list: { flex: 1, overflowY: 'auto', padding: '4px 8px' },
-  empty: {
-    textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px',
-    padding: '40px 16px', lineHeight: 1.8, whiteSpace: 'pre-line',
-  },
-  item: {
-    padding: '10px 12px', borderRadius: 'var(--radius)', cursor: 'pointer',
-    marginBottom: '3px', border: '1px solid transparent',
-    transition: 'background 0.15s',
-  },
-  itemActive: { background: 'var(--accent-dim)', border: '1px solid #c9a96e44' },
-  itemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '3px' },
-  itemTitle: {
-    fontSize: '13px', fontWeight: '600', color: 'var(--text)',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-  },
-  itemDate: { fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' },
-  itemPreview: {
-    display: 'block', fontSize: '12px', color: 'var(--text-muted)',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-    marginBottom: '4px',
-  },
-  noteTags: { display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' },
-  noteTag: {
-    fontSize: '10px', color: 'var(--accent)', background: 'var(--accent-dim)',
-    borderRadius: '10px', padding: '1px 7px',
-  },
-  actions: { display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '2px' },
-  actionBtn: {
-    background: 'none', border: 'none', fontSize: '12px',
-    color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px',
-  },
 }
