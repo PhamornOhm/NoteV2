@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import DrawingCanvas from './DrawingCanvas'
+import NotionEditor from './NotionEditor'
 import { summarizeText } from '../lib/groq'
 import { uploadFile, deleteFile as removeFileStorage } from '../lib/storage'
 import { 
@@ -25,8 +26,21 @@ export default function NoteEditor({ note, onSave, onCancel }) {
   const [showAiMenu, setShowAiMenu] = useState(false)
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [coverImage, setCoverImage] = useState('')
+  const [showCoverPicker, setShowCoverPicker] = useState(false)
   
   const fileInputRef = useRef(null)
+
+  const coverPresets = [
+    'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=900&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=900&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=900&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=900&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=900&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=900&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=900&h=300&fit=crop',
+  ]
 
   useEffect(() => {
     setTitle(note?.title || '')
@@ -42,7 +56,9 @@ export default function NoteEditor({ note, onSave, onCancel }) {
     setTags(note?.tags || [])
     setIsPinned(note?.is_pinned || false)
     setAttachments(note?.attachments || [])
+    setCoverImage(note?.cover_image || '')
     setShowHistory(false)
+    setShowCoverPicker(false)
   }, [note])
 
   const handleSave = async () => {
@@ -58,7 +74,8 @@ export default function NoteEditor({ note, onSave, onCancel }) {
       tags,
       is_pinned: isPinned,
       updated_at: now,
-      attachments // บันทึก metadata ของไฟล์
+      attachments, // บันทึก metadata ของไฟล์
+      cover_image: coverImage || null,
     }
 
     try {
@@ -260,8 +277,48 @@ export default function NoteEditor({ note, onSave, onCancel }) {
           </div>
         )}
 
+        {/* Cover Image */}
+        {coverImage && (
+          <div style={styles.coverWrap}>
+            <img src={coverImage} alt="cover" style={styles.coverImg} />
+            {!isReadOnly && (
+              <div style={styles.coverActions}>
+                <button style={styles.coverBtn} onClick={() => setShowCoverPicker(true)}>🖼️ เปลี่ยน</button>
+                <button style={styles.coverBtn} onClick={() => setCoverImage('')}>✕ ลบ</button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Content */}
         <div style={styles.content}>
+          {!coverImage && !isReadOnly && (
+            <button style={styles.addCoverBtn} onClick={() => setShowCoverPicker(true)}>🖼️ เพิ่มรูปปก</button>
+          )}
+
+          {/* Cover Picker Modal */}
+          {showCoverPicker && (
+            <div style={styles.coverPicker}>
+              <div style={styles.coverPickerHeader}>
+                <span style={{fontWeight: '600', fontSize: '14px'}}>เลือกรูปปก</span>
+                <button style={styles.coverPickerClose} onClick={() => setShowCoverPicker(false)}><X size={16}/></button>
+              </div>
+              <div style={styles.coverGrid}>
+                {coverPresets.map((url, i) => (
+                  <img key={i} src={url} alt="" style={styles.coverOption}
+                    onClick={() => { setCoverImage(url); setShowCoverPicker(false); }} />
+                ))}
+              </div>
+              <div style={styles.coverCustom}>
+                <input
+                  style={styles.coverUrlInput}
+                  placeholder="หรือวาง URL รูปภาพ..."
+                  onKeyDown={e => { if (e.key === 'Enter' && e.target.value) { setCoverImage(e.target.value); setShowCoverPicker(false); } }}
+                />
+              </div>
+            </div>
+          )}
+
           <input
             style={styles.titleInput}
             value={title}
@@ -364,11 +421,10 @@ export default function NoteEditor({ note, onSave, onCancel }) {
               />
             </div>
           ) : (
-            <textarea
-              style={styles.textarea}
+            <NotionEditor
               value={content}
-              onChange={e => setContent(e.target.value)}
-              placeholder="เริ่มเขียนที่นี่..."
+              onChange={setContent}
+              placeholder="พิมพ์ / เพื่อเปิดเมนูคำสั่ง..."
               disabled={isReadOnly}
             />
           )}
@@ -460,18 +516,18 @@ const styles = {
   },
   deletedBanner: {
     background: 'rgba(231, 76, 60, 0.1)', borderBottom: '1px solid rgba(231, 76, 60, 0.2)',
-    color: '#e74c3c', padding: '10px 24px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
+    color: '#e74c3c', padding: '10px var(--space-md)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
   },
   content: {
     flex: 1, display: 'flex', flexDirection: 'column',
-    padding: '32px 64px', overflowY: 'auto', gap: '20px',
+    padding: 'var(--space-lg) var(--space-md)', overflowY: 'auto', gap: 'var(--space-md)',
   },
   titleInput: {
     background: 'none', border: 'none',
-    color: 'var(--text)', fontSize: '32px', fontWeight: '800', fontFamily: 'var(--font-display)',
+    color: 'var(--text)', fontSize: 'var(--font-h1)', fontWeight: '800', fontFamily: 'var(--font-display)',
     padding: '0', outline: 'none', width: '100%', letterSpacing: '-0.02em',
   },
-  metaRow: { display: 'flex', alignItems: 'center', gap: '16px' },
+  metaRow: { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' },
   tagsRow: { display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' },
   tag: {
     background: 'var(--surface2)', color: 'var(--accent)', border: '1px solid var(--border)',
@@ -548,5 +604,48 @@ const styles = {
   restoreBtn: {
     background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)',
     borderRadius: '8px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', width: '100%', fontWeight: '600',
+  },
+
+  // Cover Image
+  coverWrap: {
+    position: 'relative', width: '100%', height: '200px', overflow: 'hidden',
+  },
+  coverImg: {
+    width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+  },
+  coverActions: {
+    position: 'absolute', bottom: '12px', right: '12px', display: 'flex', gap: '6px',
+    opacity: 0, transition: 'opacity 0.2s',
+  },
+  coverBtn: {
+    background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '8px',
+    padding: '6px 12px', fontSize: '12px', cursor: 'pointer', backdropFilter: 'blur(4px)',
+  },
+  addCoverBtn: {
+    background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '13px',
+    cursor: 'pointer', padding: '0', opacity: 0.6, transition: 'opacity 0.2s',
+    marginBottom: '8px',
+  },
+  coverPicker: {
+    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px',
+    padding: '16px', marginBottom: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+  },
+  coverPickerHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', color: 'var(--text)',
+  },
+  coverPickerClose: {
+    background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex',
+  },
+  coverGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px',
+  },
+  coverOption: {
+    width: '100%', height: '60px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer',
+    border: '2px solid transparent', transition: 'all 0.2s',
+  },
+  coverCustom: { borderTop: '1px solid var(--border)', paddingTop: '12px' },
+  coverUrlInput: {
+    width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px',
+    padding: '8px 12px', color: 'var(--text)', fontSize: '13px', outline: 'none',
   },
 }

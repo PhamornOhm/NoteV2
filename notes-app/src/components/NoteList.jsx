@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { 
-  Plus, Search, Pin, Trash2, Tag, LayoutGrid, List, 
+import {
+  Plus, Search, Pin, Trash2, Tag, LayoutGrid, List,
   RotateCcw, MoreVertical, Calendar, Hash, GripVertical,
   X, Check, AlertCircle, Trash
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  DndContext, 
+  DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
@@ -28,9 +28,9 @@ import { CSS } from '@dnd-kit/utilities'
 import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 
 // --- Sortable Item Component ---
-function SortableNote({ 
-  note, selected, onSelect, onPin, onDelete, onRestore, 
-  isDeletedMode, viewMode, activeConfirmDelete, setConfirmDelete 
+function SortableNote({
+  note, selected, onSelect, onPin, onDelete, onRestore,
+  isDeletedMode, viewMode, activeConfirmDelete, setConfirmDelete
 }) {
   const {
     attributes,
@@ -49,7 +49,7 @@ function SortableNote({
   }
 
   const formatDate = (d) => new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
-  
+
   const preview = (c) => {
     if (!c) return 'ไม่มีเนื้อหา'
     if (c.startsWith('[DRAWING]')) return '🎨 รูปวาด'
@@ -60,16 +60,16 @@ function SortableNote({
 
   if (viewMode === 'grid') {
     return (
-      <div 
-        ref={setNodeRef} 
-        style={style} 
+      <div
+        ref={setNodeRef}
+        style={style}
         className={`note-card-grid ${isSelected ? 'active' : ''}`}
         onClick={() => onSelect(note)}
       >
         <div className="note-card-drag-handle" {...attributes} {...listeners}>
           <GripVertical size={14} />
         </div>
-        
+
         <div className="note-card-content">
           <div className="note-card-header">
             <span className="note-card-title">
@@ -77,9 +77,9 @@ function SortableNote({
               {note.title}
             </span>
           </div>
-          
+
           <p className="note-card-preview">{preview(note.content)}</p>
-          
+
           <div className="note-card-footer">
             <span className="note-card-date">{formatDate(note.updated_at || note.created_at)}</span>
             <div className="note-card-tags">
@@ -91,28 +91,28 @@ function SortableNote({
         </div>
 
         <div className="note-card-actions">
-           {!isDeletedMode ? (
-              <>
-                <button onClick={(e) => { e.stopPropagation(); onPin(note, e); }} className="action-btn">
-                  <Pin size={14} fill={note.is_pinned ? 'currentColor' : 'none'} />
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); onDelete(note, e); }} className="action-btn hover-danger">
-                  <Trash2 size={14} />
-                </button>
-              </>
-           ) : (
-             <>
-                <button onClick={(e) => { e.stopPropagation(); onRestore(note, e); }} className="action-btn hover-success">
-                  <RotateCcw size={14} />
-                </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onDelete(note, e); }} 
-                  className={`action-btn ${activeConfirmDelete === note.id ? 'confirm' : 'hover-danger'}`}
-                >
-                  {activeConfirmDelete === note.id ? <Check size={14} /> : <Trash size={14} />}
-                </button>
-             </>
-           )}
+          {!isDeletedMode ? (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); onPin(note, e); }} className="action-btn">
+                <Pin size={14} fill={note.is_pinned ? 'currentColor' : 'none'} />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onDelete(note, e); }} className="action-btn hover-danger">
+                <Trash2 size={14} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); onRestore(note, e); }} className="action-btn hover-success">
+                <RotateCcw size={14} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(note, e); }}
+                className={`action-btn ${activeConfirmDelete === note.id ? 'confirm' : 'hover-danger'}`}
+              >
+                {activeConfirmDelete === note.id ? <Check size={14} /> : <Trash size={14} />}
+              </button>
+            </>
+          )}
         </div>
       </div>
     )
@@ -120,23 +120,23 @@ function SortableNote({
 
   // List View
   return (
-    <div 
-      ref={setNodeRef} 
-      style={style} 
+    <div
+      ref={setNodeRef}
+      style={style}
       className={`note-card-list ${isSelected ? 'active' : ''}`}
       onClick={() => onSelect(note)}
     >
       <div className="note-card-drag-handle" {...attributes} {...listeners}>
         <GripVertical size={14} />
       </div>
-      
+
       <div className="note-list-info">
         <div className="note-list-main">
-           <span className="note-list-title">
-             {note.is_pinned && <Pin size={12} fill="currentColor" className="pinned-icon" />}
-             {note.title}
-           </span>
-           <span className="note-list-preview">{preview(note.content)}</span>
+          <span className="note-list-title">
+            {note.is_pinned && <Pin size={12} fill="currentColor" className="pinned-icon" />}
+            {note.title}
+          </span>
+          <span className="note-list-preview">{preview(note.content)}</span>
         </div>
         <span className="note-list-date">{formatDate(note.updated_at || note.created_at)}</span>
       </div>
@@ -164,7 +164,7 @@ export default function NoteList({
 }) {
   const [viewMode, setViewMode] = useState('grid') // grid | list
   const [confirmDelete, setConfirmDelete] = useState(null)
-  
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -220,17 +220,17 @@ export default function NoteList({
       {/* Sidebar Header */}
       <div className="sidebar-header">
         <div className="logo-section">
-          <h2 className="logo-text">NoteV2</h2>
+          <h2 className="logo-text">Personal Dashboard</h2>
           <div className="view-toggle">
-            <button 
-              className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`} 
+            <button
+              className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
               onClick={() => setViewMode('list')}
               title="List View"
             >
               <List size={16} />
             </button>
-            <button 
-              className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`} 
+            <button
+              className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
               onClick={() => setViewMode('grid')}
               title="Grid View"
             >
@@ -238,7 +238,7 @@ export default function NoteList({
             </button>
           </div>
         </div>
-        
+
         {activeTab !== 'trash' && (
           <button className="btn-new-note" onClick={onNew}>
             <Plus size={18} />
@@ -321,7 +321,7 @@ export default function NoteList({
               <div className={`notes-${viewMode}-container`}>
                 <AnimatePresence>
                   {notes.map(note => (
-                    <SortableNote 
+                    <SortableNote
                       key={note.id}
                       note={note}
                       selected={selected}

@@ -4,6 +4,7 @@ import Login from './components/Login'
 import NoteList from './components/NoteList'
 import NoteEditor from './components/NoteEditor'
 import WelcomeModal from './components/WelcomeModal'
+import Dashboard from './components/Dashboard'
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -17,6 +18,17 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768)
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
+  const [showThemePicker, setShowThemePicker] = useState(false)
+
+  const themes = [
+    { id: 'dark', label: 'Dark', icon: '🌑', color: '#c9a96e' },
+    { id: 'light', label: 'Light', icon: '☀️', color: '#b08945' },
+    { id: 'ocean', label: 'Ocean', icon: '🌊', color: '#4fc3f7' },
+    { id: 'forest', label: 'Forest', icon: '🌲', color: '#66bb6a' },
+    { id: 'sakura', label: 'Sakura', icon: '🌸', color: '#f48fb1' },
+    { id: 'sunset', label: 'Sunset', icon: '🌅', color: '#ff8a65' },
+    { id: 'lavender', label: 'Lavender', icon: '💜', color: '#b39ddb' },
+  ]
 
   useEffect(() => {
     const handleResize = () => {
@@ -27,17 +39,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (theme === 'light') {
-      document.documentElement.classList.add('light-mode')
-    } else {
-      document.documentElement.classList.remove('light-mode')
-    }
+    const root = document.documentElement
+    // Clear all theme classes
+    root.classList.remove('light-mode', 'theme-ocean', 'theme-forest', 'theme-sakura', 'theme-sunset', 'theme-lavender')
+    if (theme === 'light') root.classList.add('light-mode')
+    else if (theme !== 'dark') root.classList.add(`theme-${theme}`)
     localStorage.setItem('theme', theme)
   }, [theme])
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark')
-  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -163,9 +171,32 @@ export default function App() {
             className="mobile-only"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           >☰</button>
-          <button style={styles.helpBtn} onClick={toggleTheme}>
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button style={styles.helpBtn} onClick={() => setShowThemePicker(!showThemePicker)}>
+              {themes.find(t => t.id === theme)?.icon || '🎨'} <span className="desktop-only">ธีม</span>
+            </button>
+            {showThemePicker && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowThemePicker(false)} />
+                <div style={styles.themePicker}>
+                  {themes.map(t => (
+                    <button
+                      key={t.id}
+                      style={{
+                        ...styles.themeOption,
+                        ...(theme === t.id ? { background: 'var(--accent-dim)', borderColor: 'var(--accent)' } : {}),
+                      }}
+                      onClick={() => { setTheme(t.id); setShowThemePicker(false); }}
+                    >
+                      <span style={{ fontSize: '16px' }}>{t.icon}</span>
+                      <span>{t.label}</span>
+                      <span style={{ ...styles.themeColorDot, background: t.color }} />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <button style={styles.helpBtn} onClick={() => setShowWelcome(true)}>💡 <span className="desktop-only">วิธีใช้งาน</span></button>
           <span style={{...styles.userEmail, flex: 1}} className="truncate">{user.email}</span>
           <button style={styles.logoutBtn} onClick={handleLogout}>ออกจากระบบ</button>
@@ -177,11 +208,12 @@ export default function App() {
             onCancel={() => { setIsEditing(false); setSelectedNote(null) }}
           />
         ) : (
-          <div style={styles.welcome}>
-            <p style={styles.welcomeTitle}>Notes</p>
-            <p style={styles.welcomeSub}>เลือกโน้ตจากด้านซ้าย หรือ กด <span style={styles.kbd}>+</span> เพื่อสร้างใหม่</p>
-            <p style={styles.noteCount}>{notes.filter(n => !n.is_deleted).length} โน้ตทั้งหมด</p>
-          </div>
+          <Dashboard 
+            user={user} 
+            notes={notes} 
+            onNewNote={handleNewNote} 
+            onSelectNote={handleSelectNote} 
+          />
         )}
       </div>
     </div>
@@ -234,5 +266,20 @@ const styles = {
     background: 'var(--accent-dim)', border: '1px solid var(--accent)', color: 'var(--accent)',
     borderRadius: '6px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer',
     display: 'flex', alignItems: 'center', gap: '4px',
+  },
+  themePicker: {
+    position: 'absolute', top: '100%', left: 0, marginTop: '8px', zIndex: 100,
+    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px',
+    padding: '8px', minWidth: '160px', boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+    display: 'flex', flexDirection: 'column', gap: '4px',
+  },
+  themeOption: {
+    display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px',
+    background: 'none', border: '1px solid transparent', borderRadius: '8px',
+    color: 'var(--text)', fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s',
+    textAlign: 'left', width: '100%',
+  },
+  themeColorDot: {
+    width: '10px', height: '10px', borderRadius: '50%', marginLeft: 'auto', flexShrink: 0,
   },
 }
