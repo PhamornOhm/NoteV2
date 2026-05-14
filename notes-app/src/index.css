@@ -15,10 +15,26 @@
   --accent: #c9a96e;
   --accent-dim: #c9a96e22;
   --danger: #c0392b;
+  --glass-bg: rgba(26, 26, 26, 0.8);
+  --btn-text: #1a1a1a;
   --radius: 12px;
   --font-display: 'DM Serif Display', serif;
   --font-body: 'DM Sans', sans-serif;
   --font-mono: 'DM Mono', monospace;
+}
+
+:root.light-mode {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --surface2: #e9ecef;
+  --border: #dee2e6;
+  --text: #212529;
+  --text-muted: #6c757d;
+  --accent: #b08945;
+  --accent-dim: #c9a96e33;
+  --danger: #dc3545;
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --btn-text: #ffffff;
 }
 
 body {
@@ -79,7 +95,7 @@ textarea, input {
 }
 
 .glass {
-  background: rgba(26, 26, 26, 0.8) !important;
+  background: var(--glass-bg) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -146,7 +162,7 @@ textarea, input {
 
 .btn-new-note {
   background: var(--accent);
-  color: #1a1a1a;
+  color: var(--btn-text);
   border: none;
   border-radius: 12px;
   padding: 12px;
