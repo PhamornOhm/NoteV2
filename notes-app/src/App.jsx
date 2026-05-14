@@ -16,6 +16,7 @@ export default function App() {
   const [activeTag, setActiveTag] = useState(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768)
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
 
   useEffect(() => {
     const handleResize = () => {
@@ -24,6 +25,19 @@ export default function App() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light-mode')
+    } else {
+      document.documentElement.classList.remove('light-mode')
+    }
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark')
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -149,6 +163,9 @@ export default function App() {
             className="mobile-only"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           >☰</button>
+          <button style={styles.helpBtn} onClick={toggleTheme}>
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           <button style={styles.helpBtn} onClick={() => setShowWelcome(true)}>💡 <span className="desktop-only">วิธีใช้งาน</span></button>
           <span style={{...styles.userEmail, flex: 1}} className="truncate">{user.email}</span>
           <button style={styles.logoutBtn} onClick={handleLogout}>ออกจากระบบ</button>
