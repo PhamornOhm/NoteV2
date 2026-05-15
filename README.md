@@ -38,6 +38,8 @@ create table notes (
   title text not null default 'ไม่มีหัวข้อ',
   content text default '',
   tags text[] default array[]::text[],
+  attachments jsonb default '[]'::jsonb,
+  cover_image text,
   is_pinned boolean default false,
   is_deleted boolean default false,
   created_at timestamptz default now(),
